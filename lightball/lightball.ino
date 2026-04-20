@@ -7,6 +7,15 @@
 #define M_PI 3.14159265f
 #endif
 
+// Set to 1 to log every command transition during playback. 0 = zero overhead.
+#define DEBUG_SEQ 0
+
+#if DEBUG_SEQ
+  #define DBG_LOG_CUR(st)  logCmd((st).ledId, (st).cmd)
+#else
+  #define DBG_LOG_CUR(st)  do { } while (0)
+#endif
+
 // ---------------------- User Config ----------------------
 const int BTN_PIN   = A4;
 const int SD_CS_PIN = 8;
@@ -64,6 +73,7 @@ bool parseCommandLine(char* buf, LEDCommand &cmd) {
   return true;
 }
 
+#if DEBUG_SEQ
 const char* cmdName(CmdType t) {
   switch (t) {
     case CMD_COLOR:    return "COLOR";
@@ -115,28 +125,63 @@ void logCmd(uint8_t ledId, const LEDCommand& cmd) {
   }
   Serial.println();
 }
+#endif // DEBUG_SEQ
 
-bool advanceCmd(LEDSeqState &st, unsigned long now) {
+// Pure file read — no state mutation. Returns true if a parsed cmd was loaded.
+bool readNextCmd(LEDSeqState &st, LEDCommand &out) {
   char buf[64];
   while (st.file.available()) {
     int len = st.file.readBytesUntil('\n', buf, sizeof(buf) - 1);
     buf[len] = '\0';
-    LEDCommand next;
-    if (parseCommandLine(buf, next)) {
-      st.cmd        = next;
-      st.cmdStartMs = now;
-      logCmd(st.ledId, next);
-      return true;
-    }
+    if (parseCommandLine(buf, out)) return true;
   }
-  st.file.close();
-  st.active = false;
-  Serial.print("[LED"); Serial.print(st.ledId); Serial.println("] END");
   return false;
 }
 
+// Fill the prefetch slot if empty. Safe to call every frame.
+void tryPrefetchNext(LEDSeqState &st) {
+  if (!st.active || st.hasNext || !st.file) return;
+  if (readNextCmd(st, st.next)) st.hasNext = true;
+  // else: EOF — swap time will mark sequence inactive.
+}
+
+// Move next -> cmd. Sync fallback on prefetch miss. Returns false on EOF.
+bool swapInNext(LEDSeqState &st) {
+  if (st.hasNext) {
+    st.cmd     = st.next;
+    st.hasNext = false;
+    return true;
+  }
+  LEDCommand tmp;
+  if (readNextCmd(st, tmp)) { st.cmd = tmp; return true; }
+  st.file.close();
+  st.active = false;
+#if DEBUG_SEQ
+  Serial.print("[LED"); Serial.print(st.ledId); Serial.println("] END");
+#endif
+  return false;
+}
+
+// Drift-free advance: new cmdStartMs = old cmdStartMs + OLD cmd.durationMs.
+bool advanceAligned(LEDSeqState &st) {
+  uint16_t oldDur = st.cmd.durationMs;
+  if (!swapInNext(st)) return false;
+  st.cmdStartMs += oldDur;
+  DBG_LOG_CUR(st);
+  return true;
+}
+
+// Re-anchored advance: cmdStartMs = newStart (for WAIT / reset-to-now cases).
+bool advanceAnchored(LEDSeqState &st, unsigned long newStart) {
+  if (!swapInNext(st)) return false;
+  st.cmdStartMs = newStart;
+  DBG_LOG_CUR(st);
+  return true;
+}
+
 // ---------------------- Sequence Runtime -----------------
-void startSeq(LEDSeqState &st) {
+// baseNow is shared across both LEDs so they share a single timeline origin.
+void startSeq(LEDSeqState &st, unsigned long baseNow) {
   if (st.file) st.file.close();
   st.file = SD.open(st.filename, FILE_READ);
   if (!st.file) {
@@ -145,14 +190,24 @@ void startSeq(LEDSeqState &st) {
     return;
   }
   st.loopsLeft = -1;
-  st.active    = advanceCmd(st, millis());
+  st.hasNext   = false;
+  LEDCommand first;
+  if (!readNextCmd(st, first)) {
+    st.file.close();
+    st.active = false;
+    return;
+  }
+  st.cmd        = first;
+  st.cmdStartMs = baseNow;
+  st.active     = true;
+  DBG_LOG_CUR(st);
+  tryPrefetchNext(st);  // eager: have next ready before first transition
 }
 
-bool stepSeq(LEDSeqState &st) {
+bool stepSeq(LEDSeqState &st, unsigned long now) {
   if (!st.active) return false;
 
   uint8_t       ledId   = st.ledId;
-  unsigned long now     = millis();
   const LEDCommand &cmd = st.cmd;
   unsigned long elapsed = now - st.cmdStartMs;
 
@@ -161,11 +216,11 @@ bool stepSeq(LEDSeqState &st) {
     case CMD_COLOR: {
       setLED(ledId, cmd.r, cmd.g, cmd.b);
       if (cmd.durationMs == 0 || elapsed >= cmd.durationMs)
-        advanceCmd(st, now);
+        advanceAligned(st);
     } break;
 
     case CMD_BLINK: {
-      if (elapsed >= cmd.durationMs) { advanceCmd(st, now); break; }
+      if (elapsed >= cmd.durationMs) { advanceAligned(st); break; }
       uint32_t cycle = (uint32_t)cmd.onMs + (uint32_t)cmd.offMs;
       if (cycle == 0) { setLED(ledId, cmd.r, cmd.g, cmd.b); break; }
       if ((elapsed % cycle) < cmd.onMs)
@@ -177,7 +232,7 @@ bool stepSeq(LEDSeqState &st) {
     case CMD_FADE: {
       if (cmd.durationMs == 0) {
         setLED(ledId, cmd.r2, cmd.g2, cmd.b2);
-        advanceCmd(st, now);
+        advanceAligned(st);
         break;
       }
       float a = (elapsed >= cmd.durationMs) ? 1.0f : (float)elapsed / (float)cmd.durationMs;
@@ -185,11 +240,11 @@ bool stepSeq(LEDSeqState &st) {
         (uint8_t)((1.0f - a) * cmd.r  + a * cmd.r2),
         (uint8_t)((1.0f - a) * cmd.g  + a * cmd.g2),
         (uint8_t)((1.0f - a) * cmd.b  + a * cmd.b2));
-      if (elapsed >= cmd.durationMs) advanceCmd(st, now);
+      if (elapsed >= cmd.durationMs) advanceAligned(st);
     } break;
 
     case CMD_BREATHE: {
-      if (elapsed >= cmd.durationMs) { advanceCmd(st, now); break; }
+      if (elapsed >= cmd.durationMs) { advanceAligned(st); break; }
       if (cmd.onMs == 0) { setLED(ledId, cmd.r, cmd.g, cmd.b); break; }
       float t = (float)(elapsed % cmd.onMs) / (float)cmd.onMs;
       float a = (1.0f - cosf(2.0f * (float)M_PI * t)) * 0.5f;
@@ -200,7 +255,7 @@ bool stepSeq(LEDSeqState &st) {
     } break;
 
     case CMD_PINGPONG: {
-      if (elapsed >= cmd.durationMs) { advanceCmd(st, now); break; }
+      if (elapsed >= cmd.durationMs) { advanceAligned(st); break; }
       if (cmd.onMs == 0) { setLED(ledId, cmd.r, cmd.g, cmd.b); break; }
       float t = (float)(elapsed % cmd.onMs) / (float)cmd.onMs;
       float a = (1.0f - cosf(2.0f * (float)M_PI * t)) * 0.5f;
@@ -212,27 +267,39 @@ bool stepSeq(LEDSeqState &st) {
 
     case CMD_WAIT: {
       if (g_buttonEdge) {
+#if DEBUG_SEQ
         Serial.print("[LED"); Serial.print(ledId); Serial.println("] WAIT -> btn");
-        advanceCmd(st, now);
+#endif
+        advanceAnchored(st, now);  // re-anchor timeline to button press
       }
     } break;
 
     case CMD_LOOP: {
       if (cmd.durationMs == 0) {
         // infinite loop
+#if DEBUG_SEQ
         Serial.print("[LED"); Serial.print(ledId); Serial.println("] LOOP rewind");
+#endif
         st.file.seek(0);
-        advanceCmd(st, now);
+        st.hasNext = false;
+        tryPrefetchNext(st);
+        advanceAligned(st);  // LOOP.durationMs = 0, so timeline is preserved
       } else {
         if (st.loopsLeft < 0) st.loopsLeft = (int16_t)(cmd.durationMs - 1);
         if (st.loopsLeft > 0) {
           st.loopsLeft--;
+#if DEBUG_SEQ
           Serial.print("[LED"); Serial.print(ledId);
           Serial.print("] LOOP rewind left="); Serial.println(st.loopsLeft);
+#endif
           st.file.seek(0);
-          advanceCmd(st, now);
+          st.hasNext = false;
+          tryPrefetchNext(st);
+          advanceAligned(st);
         } else {
+#if DEBUG_SEQ
           Serial.print("[LED"); Serial.print(ledId); Serial.println("] LOOP done");
+#endif
           st.loopsLeft = -1;
           st.file.close();
           st.active = false;
@@ -241,7 +308,7 @@ bool stepSeq(LEDSeqState &st) {
     } break;
 
     default:
-      advanceCmd(st, now);
+      advanceAligned(st);
       break;
   }
 
@@ -420,17 +487,24 @@ void loop() {
     handleSerialCommand();
     if (edge) {
       canStart = true;
-      startSeq(s0);
-      startSeq(s1);
+      unsigned long baseNow = millis();
+      startSeq(s0, baseNow);
+      startSeq(s1, baseNow);
       Serial.println("Sequence start");
     }
     return;
   }
 
+  unsigned long now = millis();
   g_buttonEdge = edge;
-  bool run0 = stepSeq(s0);
-  bool run1 = stepSeq(s1);
+  bool run0 = stepSeq(s0, now);
+  bool run1 = stepSeq(s1, now);
   g_buttonEdge = false;
+
+  // Prefetch next command into RAM during the slack of the current one.
+  // Zero-wait at transition time; SD read hidden inside cur's duration.
+  tryPrefetchNext(s0);
+  tryPrefetchNext(s1);
 
   if (!run0 && !run1) {
     canStart = false;

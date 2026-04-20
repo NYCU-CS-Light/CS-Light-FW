@@ -26,10 +26,13 @@ struct LEDSeqState {
   uint8_t       ledId;
   const char*   filename;
   File          file;
-  LEDCommand    cmd;
+  LEDCommand    cmd;              // currently playing
+  LEDCommand    next;             // prefetched, ready for zero-wait swap
+  bool          hasNext    = false;
   bool          active     = false;
-  unsigned long cmdStartMs = 0;
+  unsigned long cmdStartMs = 0;   // absolute time cmd started (drift-free)
   int16_t       loopsLeft  = -1;  // -1 = uninitialized, used by CMD_LOOP
 
-  LEDSeqState(uint8_t id, const char* fn) : ledId(id), filename(fn), active(false), cmdStartMs(0), loopsLeft(-1) {}
+  LEDSeqState(uint8_t id, const char* fn)
+    : ledId(id), filename(fn), hasNext(false), active(false), cmdStartMs(0), loopsLeft(-1) {}
 };

@@ -219,6 +219,12 @@ bool advanceAnchored(LEDSeqState &st, unsigned long newStart) {
 }
 
 // ---------------------- Sequence Runtime -----------------
+void stopSeq(LEDSeqState &st) {
+  if (st.file) st.file.close();
+  st.active  = false;
+  st.hasNext = false;
+}
+
 // baseNow is shared across both LEDs so they share a single timeline origin.
 void startSeq(LEDSeqState &st, unsigned long baseNow) {
 #ifdef USE_EMBEDDED_SEQ
@@ -569,6 +575,16 @@ void loop() {
       startSeq(s1, baseNow);
       Serial.println("Sequence start");
     }
+    return;
+  }
+
+  if (buttonHeldMs() >= 5000) {
+    stopSeq(s0);
+    stopSeq(s1);
+    setLED(0, 0, 0, 0);
+    setLED(1, 0, 0, 0);
+    canStart = false;
+    Serial.println("Hold reset. Press button to restart.");
     return;
   }
 

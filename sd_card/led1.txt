@@ -1,20 +1,4 @@
 # type,duration,on,off,r,g,b,r2,g2,b2
-# --- CMD_COLOR: blue > cyan > purple (2s each) ---
-0,2000,0,0,0,0,255,0,0,0
-0,2000,0,0,0,200,255,0,0,0
-0,2000,0,0,150,0,255,0,0,0
-# --- CMD_BLINK: two-color, equal / asymmetric ---
-1,3000,250,250,0,0,255,0,200,255
-1,3000,100,400,0,0,255,0,200,255
-# --- CMD_FADE: blue>purple, purple>blue ---
-2,3000,0,0,0,0,255,150,0,255
-2,3000,0,0,150,0,255,0,0,255
-# --- CMD_BREATHE: cyan, 1s period ---
-3,6000,1000,0,0,200,255,0,0,0
-# --- CMD_PINGPONG: blue<>purple, 2s period ---
-4,6000,2000,0,0,0,255,150,0,255
-# --- CMD_WAIT: press button to loop ---
-5,0,0,0,0,0,0,0,0,0
-0,0,0,0,0,0,0,0,0,0
-# --- CMD_LOOP: infinite ---
+# Solid white (230,230,230), looped indefinitely.
+0,60000,0,0,230,230,230,0,0,0
 6,0,0,0,0,0,0,0,0,0

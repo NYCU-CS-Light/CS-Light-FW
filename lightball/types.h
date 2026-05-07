@@ -1,5 +1,5 @@
 #pragma once
-#include <SD.h>
+#include <SdFat.h>
 
 struct LEDPins { uint8_t r, g, b; };
 
@@ -25,7 +25,7 @@ struct LEDCommand {
 struct LEDSeqState {
   uint8_t       ledId;
   const char*   filename;
-  File          file;
+  FsFile        file;
   LEDCommand    cmd;              // currently playing
   LEDCommand    next;             // prefetched, ready for zero-wait swap
   bool          hasNext    = false;

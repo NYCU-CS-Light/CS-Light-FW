@@ -1,7 +1,9 @@
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 #include <math.h>
 #include "types.h"
+
+SdFs sd;
 
 #ifndef M_PI
 #define M_PI 3.14159265f
@@ -183,7 +185,7 @@ bool advanceAnchored(LEDSeqState &st, unsigned long newStart) {
 // baseNow is shared across both LEDs so they share a single timeline origin.
 void startSeq(LEDSeqState &st, unsigned long baseNow) {
   if (st.file) st.file.close();
-  st.file = SD.open(st.filename, FILE_READ);
+  st.file = sd.open(st.filename, O_RDONLY);
   if (!st.file) {
     Serial.print("Failed to open "); Serial.println(st.filename);
     st.active = false;
@@ -280,7 +282,7 @@ bool stepSeq(LEDSeqState &st, unsigned long now) {
 #if DEBUG_SEQ
         Serial.print("[LED"); Serial.print(ledId); Serial.println("] LOOP rewind");
 #endif
-        st.file.seek(0);
+        st.file.seekSet(0);
         st.hasNext = false;
         tryPrefetchNext(st);
         advanceAligned(st);  // LOOP.durationMs = 0, so timeline is preserved
@@ -292,7 +294,7 @@ bool stepSeq(LEDSeqState &st, unsigned long now) {
           Serial.print("[LED"); Serial.print(ledId);
           Serial.print("] LOOP rewind left="); Serial.println(st.loopsLeft);
 #endif
-          st.file.seek(0);
+          st.file.seekSet(0);
           st.hasNext = false;
           tryPrefetchNext(st);
           advanceAligned(st);
@@ -344,71 +346,72 @@ bool readSerialLine() {
   return false;
 }
 
-void cmdList() {
-  File root = SD.open("/");
-  while (true) {
-    File e = root.openNextFile();
-    if (!e) break;
-    Serial.print("  "); Serial.print(e.name());
-    Serial.print("  "); Serial.print(e.size()); Serial.println(" B");
-    e.close();
-  }
-  root.close();
-}
+// void cmdList() {
+//   FsFile root = sd.open("/");
+//   FsFile e;
+//   char name[64];
+//   while (e.openNext(&root, O_RDONLY)) {
+//     e.getName(name, sizeof(name));
+//     Serial.print("  "); Serial.print(name);
+//     Serial.print("  "); Serial.print((uint32_t)e.fileSize()); Serial.println(" B");
+//     e.close();
+//   }
+//   root.close();
+// }
 
-void cmdCat(const char* fn) {
-  File f = SD.open(fn, FILE_READ);
-  if (!f) { Serial.print("ERR: not found: "); Serial.println(fn); return; }
-  while (f.available()) Serial.write(f.read());
-  f.close();
-  Serial.println();
-  Serial.println("---END---");
-}
+// void cmdCat(const char* fn) {
+//   FsFile f = sd.open(fn, O_RDONLY);
+//   if (!f) { Serial.print("ERR: not found: "); Serial.println(fn); return; }
+//   while (f.available()) Serial.write(f.read());
+//   f.close();
+//   Serial.println();
+//   Serial.println("---END---");
+// }
 
-void cmdWrite(const char* fn) {
-  if (SD.exists(fn)) SD.remove(fn);
-  File f = SD.open(fn, FILE_WRITE);
-  if (!f) { Serial.print("ERR: cannot open: "); Serial.println(fn); return; }
-  Serial.print("READY "); Serial.println(fn);
-  Serial.println("(one line per send, OR use ';' as line separator; end with 'END')");
-  uint16_t lines = 0;
-  while (true) {
-    if (readSerialLine()) {
-      if (strcmp(g_serialBuf, "END") == 0) break;
-      f.println(g_serialBuf);
-      lines++;
-    }
-  }
-  f.close();
-  Serial.print("DONE "); Serial.print(lines); Serial.println(" lines");
-}
+// void cmdWrite(const char* fn) {
+//   if (sd.exists(fn)) sd.remove(fn);
+//   FsFile f = sd.open(fn, O_WRONLY | O_CREAT | O_TRUNC);
+//   if (!f) { Serial.print("ERR: cannot open: "); Serial.println(fn); return; }
+//   Serial.print("READY "); Serial.println(fn);
+//   Serial.println("(one line per send, OR use ';' as line separator; end with 'END')");
+//   uint16_t lines = 0;
+//   while (true) {
+//     if (readSerialLine()) {
+//       if (strcmp(g_serialBuf, "END") == 0) break;
+//       f.println(g_serialBuf);
+//       lines++;
+//     }
+//   }
+//   f.close();
+//   Serial.print("DONE "); Serial.print(lines); Serial.println(" lines");
+// }
 
-void cmdDel(const char* fn) {
-  if (SD.remove(fn)) { Serial.print("Deleted "); Serial.println(fn); }
-  else               { Serial.print("ERR: cannot delete: "); Serial.println(fn); }
-}
+// void cmdDel(const char* fn) {
+//   if (sd.remove(fn)) { Serial.print("Deleted "); Serial.println(fn); }
+//   else               { Serial.print("ERR: cannot delete: "); Serial.println(fn); }
+// }
 
-void cmdHelp() {
-  Serial.println(F("Commands:"));
-  Serial.println(F("  LIST            list files"));
-  Serial.println(F("  CAT <file>      print file"));
-  Serial.println(F("  WRITE <file>    overwrite file; send lines then 'END'"));
-  Serial.println(F("  DEL <file>      delete file"));
-  Serial.println(F("  HELP            this list"));
-  Serial.println(F("  (button press)  start sequence"));
-}
+// void cmdHelp() {
+//   Serial.println(F("Commands:"));
+//   Serial.println(F("  LIST            list files"));
+//   Serial.println(F("  CAT <file>      print file"));
+//   Serial.println(F("  WRITE <file>    overwrite file; send lines then 'END'"));
+//   Serial.println(F("  DEL <file>      delete file"));
+//   Serial.println(F("  HELP            this list"));
+//   Serial.println(F("  (button press)  start sequence"));
+// }
 
-void handleSerialCommand() {
-  if (!readSerialLine()) return;
-  if      (strncmp(g_serialBuf, "WRITE ", 6) == 0) cmdWrite(g_serialBuf + 6);
-  else if (strncmp(g_serialBuf, "CAT ",   4) == 0) cmdCat  (g_serialBuf + 4);
-  else if (strncmp(g_serialBuf, "DEL ",   4) == 0) cmdDel  (g_serialBuf + 4);
-  else if (strcmp (g_serialBuf, "LIST")      == 0) cmdList();
-  else if (strcmp (g_serialBuf, "HELP")      == 0) cmdHelp();
-  else if (g_serialBuf[0] != '\0') {
-    Serial.print("Unknown: '"); Serial.print(g_serialBuf); Serial.println("' (try HELP)");
-  }
-}
+// void handleSerialCommand() {
+//   if (!readSerialLine()) return;
+//   if      (strncmp(g_serialBuf, "WRITE ", 6) == 0) cmdWrite(g_serialBuf + 6);
+//   else if (strncmp(g_serialBuf, "CAT ",   4) == 0) cmdCat  (g_serialBuf + 4);
+//   else if (strncmp(g_serialBuf, "DEL ",   4) == 0) cmdDel  (g_serialBuf + 4);
+//   else if (strcmp (g_serialBuf, "LIST")      == 0) cmdList();
+//   else if (strcmp (g_serialBuf, "HELP")      == 0) cmdHelp();
+//   else if (g_serialBuf[0] != '\0') {
+//     Serial.print("Unknown: '"); Serial.print(g_serialBuf); Serial.println("' (try HELP)");
+//   }
+// }
 
 // ---------------------- Button ---------------------------
 bool buttonPressedEdge() {
@@ -468,7 +471,7 @@ void setup() {
 
   setLED(0, 80, 60, 0); setLED(1, 80, 60, 0);  // yellow: SD initializing
 
-  if (!SD.begin(SPI_HALF_SPEED, SD_CS_PIN)) {
+  if (!sd.begin(SD_CS_PIN, SD_SCK_MHZ(4))) {
     Serial.println("SD init failed!");
     Serial.flush();
     haltWithBlink(255, 0, 0);  // red: SD init failed
@@ -479,7 +482,7 @@ void setup() {
 
   LEDSeqState* states[] = { &s0, &s1 };
   for (int i = 0; i < 2; i++) {
-    File f = SD.open(states[i]->filename, FILE_READ);
+    FsFile f = sd.open(states[i]->filename, O_RDONLY);
     if (!f) {
       Serial.print(states[i]->filename); Serial.println(" missing!");
       haltWithBlink(255, 0, 255);  // magenta: file missing
@@ -501,7 +504,7 @@ void loop() {
   bool edge = buttonPressedEdge();
 
   if (!canStart) {
-    handleSerialCommand();
+    // handleSerialCommand();
     if (edge) {
       canStart = true;
       unsigned long baseNow = millis();

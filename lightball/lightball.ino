@@ -1,7 +1,9 @@
 #include <SPI.h>
 #include <SdFat.h>
 #include <math.h>
+#include <avr/pgmspace.h>
 #include "types.h"
+#include "calibration.h"
 
 SdFs sd;
 
@@ -26,9 +28,13 @@ const int SD_CS_PIN = 8;
 const LEDPins LED_PINS[2] = { {9, 6, 11}, {13, 5, 10} };
 
 void setLED(uint8_t id, uint8_t r, uint8_t g, uint8_t b) {
-  analogWrite(LED_PINS[id].r, r);
-  analogWrite(LED_PINS[id].g, g);
-  analogWrite(LED_PINS[id].b, b);
+  // LUTs live in flash via PROGMEM; pgm_read_byte fetches them across the
+  // Harvard bus on AVR. Required — putting 768 B of LUT in SRAM exhausts the
+  // Uno's 2 KB and wedges the program (button reads stop working, SD reads
+  // misbehave, etc).
+  analogWrite(LED_PINS[id].r, pgm_read_byte(&CAL_LUT_R[r]));
+  analogWrite(LED_PINS[id].g, pgm_read_byte(&CAL_LUT_G[g]));
+  analogWrite(LED_PINS[id].b, pgm_read_byte(&CAL_LUT_B[b]));
 }
 
 void haltWithBlink(uint8_t r, uint8_t g, uint8_t b) {

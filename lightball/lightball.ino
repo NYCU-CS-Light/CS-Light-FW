@@ -445,6 +445,7 @@ bool buttonPressedEdge() {
 
 // Returns how long the button has been continuously held (ms), 0 if released.
 unsigned long buttonHeldMs() {
+  
   static int last = HIGH;
   static unsigned long lastChange = 0;
   static int stable = HIGH;
@@ -457,6 +458,7 @@ unsigned long buttonHeldMs() {
     stable = cur;
     if (stable == LOW) heldSince = now;
   }
+
   return (stable == LOW) ? (now - heldSince) : 0;
 }
 
@@ -514,7 +516,7 @@ void setup() {
 void loop() {
   static bool canStart = false;
   bool edge = buttonPressedEdge();
-
+buttonHeldMs();
   if (!canStart) {
     // handleSerialCommand();
     if (edge) {

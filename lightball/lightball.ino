@@ -2,6 +2,7 @@
 #include <SD.h>
 #include <math.h>
 #include "types.h"
+#include "calibration.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265f
@@ -24,9 +25,9 @@ const int SD_CS_PIN = 8;
 const LEDPins LED_PINS[2] = { {9, 6, 11}, {13, 5, 10} };
 
 void setLED(uint8_t id, uint8_t r, uint8_t g, uint8_t b) {
-  analogWrite(LED_PINS[id].r, r);
-  analogWrite(LED_PINS[id].g, g);
-  analogWrite(LED_PINS[id].b, b);
+  analogWrite(LED_PINS[id].r, CAL_LUT_R[r]);
+  analogWrite(LED_PINS[id].g, CAL_LUT_G[g]);
+  analogWrite(LED_PINS[id].b, CAL_LUT_B[b]);
 }
 
 void haltWithBlink(uint8_t r, uint8_t g, uint8_t b) {

@@ -1,0 +1,28 @@
+# Arduino / PlatformIO build artifacts
+build/
+.build/
+.pio/
+.pioenvs/
+.piolibdeps/
+*.elf
+*.hex
+*.bin
+*.eep
+*.map
+*.lst
+*.o
+*.d
+*.a
+
+# Arduino IDE local config
+.vscode/
+.idea/
+*.code-workspace
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+*.swo

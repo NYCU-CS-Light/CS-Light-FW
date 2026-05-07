@@ -428,6 +428,23 @@ bool buttonPressedEdge() {
   return false;
 }
 
+// Returns how long the button has been continuously held (ms), 0 if released.
+unsigned long buttonHeldMs() {
+  static int last = HIGH;
+  static unsigned long lastChange = 0;
+  static int stable = HIGH;
+  static unsigned long heldSince = 0;
+
+  int cur = digitalRead(BTN_PIN);
+  unsigned long now = millis();
+  if (cur != last) { lastChange = now; last = cur; }
+  if ((now - lastChange) > 30 && cur != stable) {
+    stable = cur;
+    if (stable == LOW) heldSince = now;
+  }
+  return (stable == LOW) ? (now - heldSince) : 0;
+}
+
 // ---------------------- Setup ----------------------------
 void setup() {
   Serial.begin(115200);

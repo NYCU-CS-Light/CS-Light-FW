@@ -1,5 +1,7 @@
 #pragma once
+#ifndef USE_EMBEDDED_SEQ
 #include <SdFat.h>
+#endif
 
 struct LEDPins { uint8_t r, g, b; };
 
@@ -24,8 +26,14 @@ struct LEDCommand {
 
 struct LEDSeqState {
   uint8_t       ledId;
+#ifdef USE_EMBEDDED_SEQ
+  const LEDCommand* seqData;        // PROGMEM array
+  uint16_t          seqLen;
+  uint16_t          seqIdx;
+#else
   const char*   filename;
   FsFile        file;
+#endif
   LEDCommand    cmd;              // currently playing
   LEDCommand    next;             // prefetched, ready for zero-wait swap
   bool          hasNext    = false;
@@ -33,6 +41,12 @@ struct LEDSeqState {
   unsigned long cmdStartMs = 0;   // absolute time cmd started (drift-free)
   int16_t       loopsLeft  = -1;  // -1 = uninitialized, used by CMD_LOOP
 
+#ifdef USE_EMBEDDED_SEQ
+  LEDSeqState(uint8_t id, const LEDCommand* data, uint16_t len)
+    : ledId(id), seqData(data), seqLen(len), seqIdx(0),
+      hasNext(false), active(false), cmdStartMs(0), loopsLeft(-1) {}
+#else
   LEDSeqState(uint8_t id, const char* fn)
     : ledId(id), filename(fn), hasNext(false), active(false), cmdStartMs(0), loopsLeft(-1) {}
+#endif
 };

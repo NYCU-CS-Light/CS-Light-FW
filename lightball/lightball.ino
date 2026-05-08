@@ -1,11 +1,23 @@
-#include <SPI.h>
-#include <SdFat.h>
+// Uncomment to bake sequences into firmware (no SD card required).
+// When defined, SEQ_LED0/SEQ_LED1 from sequences.h replace led0.txt/led1.txt.
+#define USE_EMBEDDED_SEQ
+
+#ifndef USE_EMBEDDED_SEQ
+  #include <SPI.h>
+  #include <SdFat.h>
+#endif
 #include <math.h>
 #include <avr/pgmspace.h>
+#include <string.h>
 #include "types.h"
 #include "calibration.h"
+#ifdef USE_EMBEDDED_SEQ
+  #include "sequences.h"
+#endif
 
+#ifndef USE_EMBEDDED_SEQ
 SdFs sd;
+#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265f
@@ -45,13 +57,19 @@ void haltWithBlink(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 // ---------------------- Runtime State --------------------
+#ifdef USE_EMBEDDED_SEQ
+LEDSeqState s0(0, SEQ_LED0, sizeof(SEQ_LED0) / sizeof(LEDCommand));
+LEDSeqState s1(1, SEQ_LED1, sizeof(SEQ_LED1) / sizeof(LEDCommand));
+#else
 LEDSeqState s0(0, "led0.txt");
 LEDSeqState s1(1, "led1.txt");
+#endif
 
 // Shared button edge flag — set once per loop(), consumed by CMD_WAIT
 static bool g_buttonEdge = false;
 
 // ---------------------- SD Helpers -----------------------
+#ifndef USE_EMBEDDED_SEQ
 // Format: type, duration, on, off, r, g, b, r2, g2, b2
 bool parseCommandLine(char* buf, LEDCommand &cmd) {
   int len = strlen(buf);
@@ -80,6 +98,7 @@ bool parseCommandLine(char* buf, LEDCommand &cmd) {
   cmd.b2         = (uint8_t)vals[9];
   return true;
 }
+#endif // !USE_EMBEDDED_SEQ
 
 #if DEBUG_SEQ
 const char* cmdName(CmdType t) {
@@ -135,8 +154,14 @@ void logCmd(uint8_t ledId, const LEDCommand& cmd) {
 }
 #endif // DEBUG_SEQ
 
-// Pure file read — no state mutation. Returns true if a parsed cmd was loaded.
+// Pure source read — no state mutation. Returns true if a cmd was loaded.
 bool readNextCmd(LEDSeqState &st, LEDCommand &out) {
+#ifdef USE_EMBEDDED_SEQ
+  if (st.seqIdx >= st.seqLen) return false;
+  memcpy_P(&out, &st.seqData[st.seqIdx], sizeof(LEDCommand));
+  st.seqIdx++;
+  return true;
+#else
   char buf[64];
   while (st.file.available()) {
     int len = st.file.readBytesUntil('\n', buf, sizeof(buf) - 1);
@@ -144,11 +169,15 @@ bool readNextCmd(LEDSeqState &st, LEDCommand &out) {
     if (parseCommandLine(buf, out)) return true;
   }
   return false;
+#endif
 }
 
 // Fill the prefetch slot if empty. Safe to call every frame.
 void tryPrefetchNext(LEDSeqState &st) {
-  if (!st.active || st.hasNext || !st.file) return;
+  if (!st.active || st.hasNext) return;
+#ifndef USE_EMBEDDED_SEQ
+  if (!st.file) return;
+#endif
   if (readNextCmd(st, st.next)) st.hasNext = true;
   // else: EOF — swap time will mark sequence inactive.
 }
@@ -162,7 +191,9 @@ bool swapInNext(LEDSeqState &st) {
   }
   LEDCommand tmp;
   if (readNextCmd(st, tmp)) { st.cmd = tmp; return true; }
+#ifndef USE_EMBEDDED_SEQ
   st.file.close();
+#endif
   st.active = false;
 #if DEBUG_SEQ
   Serial.print("[LED"); Serial.print(st.ledId); Serial.println("] END");
@@ -190,6 +221,9 @@ bool advanceAnchored(LEDSeqState &st, unsigned long newStart) {
 // ---------------------- Sequence Runtime -----------------
 // baseNow is shared across both LEDs so they share a single timeline origin.
 void startSeq(LEDSeqState &st, unsigned long baseNow) {
+#ifdef USE_EMBEDDED_SEQ
+  st.seqIdx = 0;
+#else
   if (st.file) st.file.close();
   st.file = sd.open(st.filename, O_RDONLY);
   if (!st.file) {
@@ -197,11 +231,14 @@ void startSeq(LEDSeqState &st, unsigned long baseNow) {
     st.active = false;
     return;
   }
+#endif
   st.loopsLeft = -1;
   st.hasNext   = false;
   LEDCommand first;
   if (!readNextCmd(st, first)) {
+#ifndef USE_EMBEDDED_SEQ
     st.file.close();
+#endif
     st.active = false;
     return;
   }
@@ -288,7 +325,11 @@ bool stepSeq(LEDSeqState &st, unsigned long now) {
 #if DEBUG_SEQ
         Serial.print("[LED"); Serial.print(ledId); Serial.println("] LOOP rewind");
 #endif
+#ifdef USE_EMBEDDED_SEQ
+        st.seqIdx = 0;
+#else
         st.file.seekSet(0);
+#endif
         st.hasNext = false;
         tryPrefetchNext(st);
         advanceAligned(st);  // LOOP.durationMs = 0, so timeline is preserved
@@ -300,7 +341,11 @@ bool stepSeq(LEDSeqState &st, unsigned long now) {
           Serial.print("[LED"); Serial.print(ledId);
           Serial.print("] LOOP rewind left="); Serial.println(st.loopsLeft);
 #endif
+#ifdef USE_EMBEDDED_SEQ
+          st.seqIdx = 0;
+#else
           st.file.seekSet(0);
+#endif
           st.hasNext = false;
           tryPrefetchNext(st);
           advanceAligned(st);
@@ -309,7 +354,9 @@ bool stepSeq(LEDSeqState &st, unsigned long now) {
           Serial.print("[LED"); Serial.print(ledId); Serial.println("] LOOP done");
 #endif
           st.loopsLeft = -1;
+#ifndef USE_EMBEDDED_SEQ
           st.file.close();
+#endif
           st.active = false;
         }
       }
@@ -468,6 +515,7 @@ void setup() {
   }
   pinMode(BTN_PIN, INPUT_PULLUP);
 
+#ifndef USE_EMBEDDED_SEQ
   pinMode(SD_CS_PIN, OUTPUT);
   digitalWrite(SD_CS_PIN, HIGH);
   delay(10);
@@ -495,6 +543,9 @@ void setup() {
     }
     f.close();
   }
+#else
+  Serial.println("Embedded sequences in flash");
+#endif
 
   for (int i = 0; i < 2; i++) {
     setLED(0, 0, 255, 0); setLED(1, 0, 255, 0); delay(200);

@@ -14,6 +14,7 @@
 #ifdef USE_EMBEDDED_SEQ
   #include "sequences.h"
 #endif
+#include "btnState.h"
 
 #ifndef USE_EMBEDDED_SEQ
 SdFs sd;
@@ -65,8 +66,11 @@ LEDSeqState s0(0, "led0.txt");
 LEDSeqState s1(1, "led1.txt");
 #endif
 
-// Shared button edge flag — set once per loop(), consumed by CMD_WAIT
+// Shared button edge flag — set in onBtnSingle(), consumed by CMD_WAIT in stepSeq
 static bool g_buttonEdge = false;
+static bool g_canStart   = false;
+
+btnState btn(BTN_PIN);
 
 // ---------------------- SD Helpers -----------------------
 #ifndef USE_EMBEDDED_SEQ
@@ -472,41 +476,27 @@ bool readSerialLine() {
 //   }
 // }
 
-// ---------------------- Button ---------------------------
-bool buttonPressedEdge() {
-  static int last = HIGH;
-  static unsigned long lastChange = 0;
-  static int stableLast = HIGH;
-
-  int cur = digitalRead(BTN_PIN);
-  unsigned long now = millis();
-
-  if (cur != last) { lastChange = now; last = cur; }
-
-  if ((now - lastChange) > 30 && cur != stableLast) {
-    stableLast = cur;
-    if (stableLast == LOW) return true;
+// ---------------------- Button Callbacks -----------------
+void onBtnSingle() {
+  g_buttonEdge = true;
+  if (!g_canStart) {
+    g_canStart = true;
+    unsigned long baseNow = millis();
+    startSeq(s0, baseNow);
+    startSeq(s1, baseNow);
+    Serial.println("Sequence start");
   }
-  return false;
 }
 
-// Returns how long the button has been continuously held (ms), 0 if released.
-unsigned long buttonHeldMs() {
-  
-  static int last = HIGH;
-  static unsigned long lastChange = 0;
-  static int stable = HIGH;
-  static unsigned long heldSince = 0;
-
-  int cur = digitalRead(BTN_PIN);
-  unsigned long now = millis();
-  if (cur != last) { lastChange = now; last = cur; }
-  if ((now - lastChange) > 30 && cur != stable) {
-    stable = cur;
-    if (stable == LOW) heldSince = now;
+void onBtnLong() {
+  if (g_canStart) {
+    stopSeq(s0);
+    stopSeq(s1);
+    setLED(0, 0, 0, 0);
+    setLED(1, 0, 0, 0);
+    g_canStart = false;
+    Serial.println("Hold reset. Press button to restart.");
   }
-
-  return (stable == LOW) ? (now - heldSince) : 0;
 }
 
 // ---------------------- Setup ----------------------------
@@ -521,7 +511,8 @@ void setup() {
     pinMode(LED_PINS[i].g, OUTPUT); digitalWrite(LED_PINS[i].g, LOW);
     pinMode(LED_PINS[i].b, OUTPUT); digitalWrite(LED_PINS[i].b, LOW);
   }
-  pinMode(BTN_PIN, INPUT_PULLUP);
+  btn.onSinglePress(onBtnSingle);
+  btn.onLongPress(onBtnLong);
 
 #ifndef USE_EMBEDDED_SEQ
   pinMode(SD_CS_PIN, OUTPUT);
@@ -565,33 +556,11 @@ void setup() {
 
 // ---------------------- Loop -----------------------------
 void loop() {
-  static bool canStart = false;
-  bool edge = buttonPressedEdge();
-buttonHeldMs();
-  if (!canStart) {
-    // handleSerialCommand();
-    if (edge) {
-      canStart = true;
-      unsigned long baseNow = millis();
-      startSeq(s0, baseNow);
-      startSeq(s1, baseNow);
-      Serial.println("Sequence start");
-    }
-    return;
-  }
+  btn.update();
 
-  if (buttonHeldMs() >= 5000) {
-    stopSeq(s0);
-    stopSeq(s1);
-    setLED(0, 0, 0, 0);
-    setLED(1, 0, 0, 0);
-    canStart = false;
-    Serial.println("Hold reset. Press button to restart.");
-    return;
-  }
+  if (!g_canStart) { g_buttonEdge = false; return; }
 
   unsigned long now = millis();
-  g_buttonEdge = edge;
   bool run0 = stepSeq(s0, now);
   bool run1 = stepSeq(s1, now);
   g_buttonEdge = false;
@@ -602,7 +571,7 @@ buttonHeldMs();
   tryPrefetchNext(s1);
 
   if (!run0 && !run1) {
-    canStart = false;
+    g_canStart = false;
     setLED(0, 0, 0, 0);
     setLED(1, 0, 0, 0);
     Serial.println("Sequence done");

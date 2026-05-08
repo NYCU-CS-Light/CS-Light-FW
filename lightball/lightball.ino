@@ -15,6 +15,9 @@
   #include "sequences.h"
 #endif
 #include "btnState.h"
+#ifdef USE_EMBEDDED_SEQ
+  #include "sequences.h"
+#endif
 
 #ifndef USE_EMBEDDED_SEQ
 SdFs sd;

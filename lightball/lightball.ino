@@ -345,9 +345,17 @@ bool stepSeq(LEDSeqState &st, unsigned long now) {
 #endif
         st.hasNext = false;
         tryPrefetchNext(st);
-        advanceAligned(st);  // LOOP.durationMs = 0, so timeline is preserved
+        // LOOP carries a count, not a real duration. Use advanceAnchored to
+        // preserve cmdStartMs across the rewind so the timeline doesn't drift.
+        advanceAnchored(st, st.cmdStartMs);
       } else {
-        if (st.loopsLeft < 0) st.loopsLeft = (int16_t)(cmd.durationMs - 1);
+        if (st.loopsLeft < 0) {
+          // durationMs is uint16 (up to 65535), but loopsLeft is int16. Clamp
+          // so the high bit doesn't make it look "uninitialized" forever and
+          // collapse a long finite loop into a single play.
+          int32_t init = (int32_t)cmd.durationMs - 1;
+          st.loopsLeft = (init > 0x7FFF) ? (int16_t)0x7FFF : (int16_t)init;
+        }
         if (st.loopsLeft > 0) {
           st.loopsLeft--;
 #if DEBUG_SEQ
@@ -361,7 +369,9 @@ bool stepSeq(LEDSeqState &st, unsigned long now) {
 #endif
           st.hasNext = false;
           tryPrefetchNext(st);
-          advanceAligned(st);
+          // Same anchor preservation as the infinite branch — loop count is
+          // not a duration, so adding it to cmdStartMs would skew the clock.
+          advanceAnchored(st, st.cmdStartMs);
         } else {
 #if DEBUG_SEQ
           Serial.print("[LED"); Serial.print(ledId); Serial.println("] LOOP done");

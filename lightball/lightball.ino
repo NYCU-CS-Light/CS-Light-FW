@@ -227,7 +227,9 @@ bool advanceAnchored(LEDSeqState &st, unsigned long newStart) {
 
 // ---------------------- Sequence Runtime -----------------
 void stopSeq(LEDSeqState &st) {
+#ifndef USE_EMBEDDED_SEQ
   if (st.file) st.file.close();
+#endif
   st.active  = false;
   st.hasNext = false;
 }

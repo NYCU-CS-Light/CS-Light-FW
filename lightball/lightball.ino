@@ -575,6 +575,16 @@ void loop() {
 
   if (!g_canStart) { g_buttonEdge = false; return; }
 
+  if (buttonHeldMs() >= 5000) {
+    stopSeq(s0);
+    stopSeq(s1);
+    setLED(0, 0, 0, 0);
+    setLED(1, 0, 0, 0);
+    canStart = false;
+    Serial.println("Hold reset. Press button to restart.");
+    return;
+  }
+
   unsigned long now = millis();
   bool run0 = stepSeq(s0, now);
   bool run1 = stepSeq(s1, now);

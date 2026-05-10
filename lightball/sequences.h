@@ -1,28 +1,60 @@
 #pragma once
-// Embedded sequences — used only when USE_EMBEDDED_SEQ is defined.
-// Transcribed verbatim from sd_card/led0.txt and sd_card/led1.txt.
-// Note: durations >65535 narrow to uint16_t (matches the SD-mode parser's
-// existing truncation behavior). Long clips should be split at export time.
+// Embedded sequences for ball b3 — used only when USE_EMBEDDED_SEQ is defined.
+// Transcribed from template/b3/led0.txt and template/b3/led1.txt.
 
 #include <avr/pgmspace.h>
 #include "types.h"
 
 const LEDCommand SEQ_LED0[] PROGMEM = {
-  {CMD_COLOR, 2000, 0, 0, 255,  59,  59, 0, 0, 0},
-  {CMD_COLOR, 2000, 0, 0,   0,   0,   0, 0, 0, 0},
-  {CMD_COLOR, 2000, 0, 0, 255, 201,  51, 0, 0, 0},
-  {CMD_COLOR, 2000, 0, 0,   0,   0,   0, 0, 0, 0},
-  {CMD_WAIT,     0, 0, 0,   0,   0,   0, 0, 0, 0},
-  {CMD_LOOP,     0, 0, 0,   0,   0,   0, 0, 0, 0},
-  {CMD_COLOR, (uint16_t)227500, 0, 0, 0, 0, 0, 0, 0, 0},
-  {CMD_LOOP,     0, 0, 0,   0,   0,   0, 0, 0, 0},
+  {CMD_COLOR,     1165,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,     1165,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,     1165,    0,    0, 236,  72, 153,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,     9317,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    52423,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    37427,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    13107,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,     8010,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,     3058,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,    38883,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_BREATHE,  13835, 1600,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,    27816,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,     6699,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,     2913,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    29709,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,      583,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_LOOP,         0,    0,    0,   0,   0,   0,   0,   0,   0},
 };
 
 const LEDCommand SEQ_LED1[] PROGMEM = {
-  {CMD_COLOR, 2000, 0, 0,   0,   0,   0, 0, 0, 0},
-  {CMD_COLOR, 2000, 0, 0, 255, 138,   0, 0, 0, 0},
-  {CMD_COLOR, 2000, 0, 0,   0,   0,   0, 0, 0, 0},
-  {CMD_COLOR, 2000, 0, 0,  61, 220, 132, 0, 0, 0},
-  {CMD_COLOR, (uint16_t)228000, 0, 0, 0, 0, 0, 0, 0, 0},
-  {CMD_LOOP,     0, 0, 0,   0,   0,   0, 0, 0, 0},
+  {CMD_COLOR,     1165,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,     1165,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,     1165,    0,    0, 236,  72, 153,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,     9317,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    65535,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    52423,    0,    0, 253, 232, 124,   0,   0,   0},
+  {CMD_COLOR,    37427,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    13107,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,     8010,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,     3058,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,    38883,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_BREATHE,  13835, 1600,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,    27816,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,     6699,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,     2913,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_COLOR,    29709,    0,    0,   0,  42, 255,   0,   0,   0},
+  {CMD_COLOR,      583,    0,    0,   0,   0,   0,   0,   0,   0},
+  {CMD_LOOP,         0,    0,    0,   0,   0,   0,   0,   0,   0},
 };

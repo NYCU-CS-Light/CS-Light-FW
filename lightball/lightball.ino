@@ -502,6 +502,13 @@ void onBtnSingle() {
 
 void onBtnLong() {
   if (g_canStart) {
+    setLED(0, 180, 180, 180);
+    setLED(1, 180, 180, 180);
+    delay(500)
+
+    setLED(0, 180, 180, 180);
+    setLED(1, 180, 180, 180);
+    delay(500)
     stopSeq(s0);
     stopSeq(s1);
     setLED(0, 0, 0, 0);

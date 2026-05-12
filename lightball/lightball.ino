@@ -1,6 +1,6 @@
 // Uncomment to bake sequences into firmware (no SD card required).
 // When defined, SEQ_LED0/SEQ_LED1 from sequences.h replace led0.txt/led1.txt.
-#define USE_EMBEDDED_SEQ
+// #define USE_EMBEDDED_SEQ
 
 #ifndef USE_EMBEDDED_SEQ
   #include <SPI.h>
@@ -568,8 +568,14 @@ void setup() {
   Serial.println("Embedded sequences in flash");
 #endif
 
-  for (int i = 0; i < 2; i++) {
+for (int i = 0; i < 2; i++) {
+    setLED(0, 255, 0, 0); setLED(1, 255, 0, 0); delay(200);
+    setLED(0, 0,   0, 0); setLED(1, 0,   0, 0); delay(200);
+
     setLED(0, 0, 255, 0); setLED(1, 0, 255, 0); delay(200);
+    setLED(0, 0,   0, 0); setLED(1, 0,   0, 0); delay(200);
+
+    setLED(0, 0, 0, 255); setLED(1, 0, 0, 255); delay(200);
     setLED(0, 0,   0, 0); setLED(1, 0,   0, 0); delay(200);
   }
 
